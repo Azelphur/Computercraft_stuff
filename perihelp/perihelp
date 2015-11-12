@@ -1,0 +1,9 @@
+args = {...}
+p = peripheral.wrap(args[1])
+
+f = fs.open("docs", "w")
+f.write(textutils.serialize(p.getAdvancedMethodsData()))
+f.close()
+
+shell.run("rom/programs/edit", "docs")
+
