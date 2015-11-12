@@ -1,0 +1,7 @@
+function draw(monitor, settings)
+    line = textutils.formatTime(os.time(), false)
+    if string.len(line) == 7 then
+        line = " "..line
+    end
+    return {{line, nil}}
+end

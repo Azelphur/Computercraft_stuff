@@ -1,0 +1,146 @@
+MONITORS = {}
+
+function _initBuffer(monitor)
+    local w, h = monitor.getSize()
+    local t = {}
+    for x=1, w do
+        t[x] = {}
+        for y=1, h do
+            t[x][y] = {["char"] = " ", ["color"] = colors.white, ["bgcolor"] = colors.black}
+        end
+    end
+    return t
+end
+
+function _sendToAllMonitors(f, ...)
+    t = {}
+    for name, monitor in pairs(MONITORS) do
+        if name:sub(1, 8) == "monitor_" then
+            table.insert(t, monitor[f](...))
+        end
+    end    
+    return t
+end
+
+function wrapAllMonitors()
+    local t = {}
+    for id, name in pairs(peripheral.getNames()) do
+        if name:sub(1, 8) == "monitor_" then
+            for key, value in pairs(wrap(name)) do
+                t[key] = function (...) return _sendToAllMonitors(key, ...) end
+            end
+            MONITORS[name] = wrap(name)
+        end
+    end
+    return t
+end
+
+function wrap(name)
+    local monitor
+    if name == "term" then
+      monitor = term
+    else
+      monitor = peripheral.wrap(name)
+    end
+    return wrapPeripheral(monitor)
+end
+
+function wrapPeripheral(monitor)
+    if monitor.setTextScale ~= nil then
+        monitor.setTextScale(1)
+    end
+    monitor.setCursorPos(1, 1)
+    monitor.setTextColor(colors.white)
+    monitor.setBackgroundColor(colors.black)
+    monitor.clear()
+
+    local new_buffer = _initBuffer(monitor)
+    local old_buffer = _initBuffer(monitor)
+    local monitor_w, monitor_h = monitor.getSize()
+    local monitor_color = colors.white
+    local monitor_bgcolor = colors.black
+
+
+    local lib = monitor
+    lib._write = monitor.write
+    lib._setTextColor = monitor.setTextColor
+    lib._setBackgroundColor = monitor.setBackgroundColor
+    lib.write = function(text, x, y, color, bgcolor)
+        local cposx, cposy = monitor.getCursorPos()
+        if x == nil then
+            x = cposx
+        end
+        if y == nil then
+            y = cposy
+        end
+
+        x = math.floor(x+0.5)
+        y = math.floor(y+0.5)
+
+        -- protection against monitor resizes
+        if new_buffer[x] == nil or new_buffer[x][y] == nil then
+            return
+        end
+
+        if color == nil then
+            color = monitor_color
+        end
+        if bgcolor == nil then
+            bgcolor = monitor_bgcolor
+        end
+        for i = 1, #text do
+            if x > monitor_w then
+                return
+            end
+            new_buffer[x][y] = {["char"] = text:sub(i, i), ["color"] = color, ["bgcolor"] = bgcolor}
+            x = x + 1
+        end
+    end
+    lib.setTextColor = function(color)
+        monitor_color = color
+        return monitor._setTextColor(color)
+    end
+    lib.setBackgroundColor = function(color)
+        monitor_bgcolor = color
+        return monitor._setBackgroundColor(color)
+    end
+    lib.draw = function()
+        local newW, newH = monitor.getSize()
+        local requiresRedraw = false
+        if newW ~= monitor_w or newH ~= monitor_h then 
+            monitor_w, monitor_h = newW, newH
+            monitor.clear()
+            old_buffer = _initBuffer(monitor)
+        end
+
+        for x=1, #new_buffer do
+            for y=1, #new_buffer[x] do
+                newchar = new_buffer[x][y]["char"]
+                if old_buffer[x] == nil or old_buffer[x][y] == nil then
+                    oldchar = " "
+                    oldcolor = colors.white
+                    oldbgcolor = colors.black
+                else
+                    oldchar = old_buffer[x][y]["char"]
+                    oldcolor = old_buffer[x][y]["color"]
+                    oldbgcolor = old_buffer[x][y]["bgcolor"]
+                end
+                if monitor_color ~= new_buffer[x][y]["color"] then
+                    monitor.setTextColor(new_buffer[x][y]["color"])
+                    monitor_color = new_buffer[x][y]["color"]
+                end
+                if monitor_bgcolor ~= new_buffer[x][y]["bgcolor"] then
+                    monitor.setBackgroundColor(new_buffer[x][y]["bgcolor"])
+                    monitor_bgcolor = new_buffer[x][y]["bgcolor"]
+                end
+                if newchar ~= oldchar or oldcolor ~= new_buffer[x][y]["color"] or oldbgcolor ~= new_buffer[x][y]["bgcolor"] then
+                    monitor.setCursorPos(x, y)
+                    monitor._write(newchar)
+                end
+            end
+        end
+        old_buffer = new_buffer
+        new_buffer = _initBuffer(monitor)
+    end
+    return lib
+end

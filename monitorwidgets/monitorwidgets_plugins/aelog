@@ -1,0 +1,91 @@
+g_log_lines = {}
+
+g_me_itemnames = {}
+g_me_items_old = {}
+
+-- Get The Name Of An Item
+function GetItemName(me, item)
+    if item.fingerprint == nil then
+        return "Unknown"
+    end
+    
+    local fingerprint = FingerPrintToString(item)
+    if g_me_itemnames[fingerprint] then
+        return g_me_itemnames[fingerprint]
+    end
+
+    local item_detail = me.getItemDetail(item.fingerprint) or {}
+    local item_name
+    if item_detail.basic then
+        local item_basic = item_detail.basic()
+        item_name = item_basic.display_name or item.fingerprint.id
+    else
+        item_name = item.fingerprint.id
+    end
+    g_me_itemnames[fingerprint] = item_name
+    return item_name
+end
+
+function FingerPrintToString(item)
+    result=""
+    for key, value in pairs(item.fingerprint) do
+        result = result..key.."="..value..", "
+    end
+    return string.sub(result, 1, -3)
+end
+
+function ReverseTable(t)
+    local reversedTable = {}
+    local itemCount = #t
+    for k, v in ipairs(t) do
+        reversedTable[itemCount + 1 - k] = v
+    end
+    return reversedTable
+end
+
+function draw(monitor, settings)
+    local me = peripheral.wrap(settings["peripheral"])
+
+    if not g_me_items_old[monitor] then
+        g_me_items_old[monitor] = {}
+        local items = me.getAvailableItems()
+        for itemid, item in pairs(items) do
+            g_me_items_old[monitor][FingerPrintToString(item)] = item
+        end
+        return
+    end
+
+    if not g_log_lines[monitor] then
+        g_log_lines[monitor] = {}
+    end
+
+    local new_items_old = {}
+    local items = me.getAvailableItems()
+    for itemid, item in pairs(items) do
+        local fingerprint = FingerPrintToString(item)
+        if g_me_items_old[monitor][fingerprint] then
+            if item.size > g_me_items_old[monitor][fingerprint].size then
+                table.insert(g_log_lines[monitor], {"+"..item.size-g_me_items_old[monitor][fingerprint].size.." "..GetItemName(me, item), settings.color_item_added})
+            elseif item.size < g_me_items_old[monitor][fingerprint].size then
+                table.insert(g_log_lines[monitor], {item.size-g_me_items_old[monitor][fingerprint].size.." "..GetItemName(me, item), settings.color_item_removed})
+            end
+        end
+        new_items_old[fingerprint] = item
+    end
+
+    g_me_items_old[monitor] = new_items_old
+
+    while #g_log_lines[monitor] > settings.h do
+        table.remove(g_log_lines[monitor], 1)
+    end
+    
+    if settings.newest_at_top then
+        return ReverseTable(g_log_lines[monitor])
+    else
+        return g_log_lines[monitor]
+    end
+end
+
+function getTitle()
+    return "Applied Energistics Log"
+end

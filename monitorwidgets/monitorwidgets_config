@@ -1,0 +1,42 @@
+{
+    ["MONITORS"] = {
+        ["top"] = {
+            ["time"] = {
+                x = 54,
+                y = 19,
+                w = 8,
+                h = 1,
+                draw_border = true,
+            },
+            ["aelog"] = {
+                x = 15,
+                y = 5,
+                w = 30,
+                h = 14,
+                draw_border = true,
+                peripheral = "bottom",
+                newest_at_top = true,
+                color_item_added = 8192,
+                color_item_removed = 16384,
+                draw_title = false,
+            },
+            ["plaintext"] = {
+                [1] = {
+                    x = 32,
+                    y = 2,
+                    text = "Hello",
+                },
+                [2] = {
+                    x = 32,
+                    y = 1,
+                    text = "World",
+                },
+            },
+        }
+    },
+    ["SETTINGS"] = {
+        time_between_redraws = 1,
+        horizontal_border = "-",
+        vertical_border = "|"
+    }
+}

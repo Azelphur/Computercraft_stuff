@@ -1,0 +1,6 @@
+function draw(monitor, settings)
+    for num, text_table in pairs(settings) do
+        monitor.write(text_table.text, text_table.x, text_table.y, text_table.color)
+    end
+    return
+end

@@ -1,0 +1,83 @@
+------------------
+--  Load API's  --
+------------------
+
+os.loadAPI("easymonitor")
+
+configFile = fs.open("monitorwidgets_config", "r")
+g_config = textutils.unserialize(configFile.readAll())
+configFile.close()
+
+--------------------------
+--  Initialise Monitors  --
+--------------------------
+
+
+if g_config["MONITORS"] ~= nil then 
+    g_monitors = {}
+    
+    for monitor_name, config in pairs(g_config["MONITORS"]) do 
+        if peripheral.isPresent(monitor_name) then
+            monitor = easymonitor.wrap(monitor_name)
+            g_monitors[monitor] = config
+            for name, settings in pairs(g_config["MONITORS"][monitor_name]) do
+                if not os.loadAPI("monitorwidgets_plugins/"..name) then
+                    print("ERROR: Failed to load plugin: "..name)
+                end
+            end
+            monitor.clear()
+        else
+            print("ERROR: Device not present: "..monitor_name)
+        end
+    end
+else
+    print("No monitors defined in monitor_config")
+    return
+end
+
+while true do
+    for monitor, config in pairs(g_monitors) do
+        for name, settings in pairs(config) do
+            result = _G[name].draw(monitor, settings)
+            if settings.draw_border then
+                line = string.rep(g_config["SETTINGS"]["horizontal_border"], settings.w+2)
+                local x = 1
+                if settings.x-1 < 1 then
+                    line = string.rep(g_config["SETTINGS"]["horizontal_border"], (settings.w+2)+(settings.x-1)-1)
+                else
+                    line = string.rep(g_config["SETTINGS"]["horizontal_border"], settings.w+2)
+                    x = settings.x-1
+                end
+                monitor.write(line, x, settings.y-1)
+                monitor.write(line, x, settings.y+settings.h)                
+                for i=settings.y, settings.y+settings.h-1 do
+                    monitor.write(g_config["SETTINGS"]["vertical_border"], settings.x-1, i)
+                    monitor.write(g_config["SETTINGS"]["vertical_border"], settings.x+settings.w, i)
+                end
+                if settings.draw_title and settings.y > 2 then
+                    local title = _G[name].getTitle()
+                    monitor.write(title, settings.x+2, settings.y-2, settings.title_color)
+                    monitor.write(g_config["SETTINGS"]["vertical_border"], settings.x-1, settings.y-2)
+                    monitor.write(g_config["SETTINGS"]["vertical_border"], settings.x+settings.w, settings.y-2)
+                    monitor.write(line, x, settings.y-3)
+                end
+            end
+            if result then
+                for num, linecolor in ipairs(result) do
+                    line, color = linecolor[1], linecolor[2]
+                    --- Line too long? truncate it ---
+                    if string.len(line) > settings.w then
+                        line = string.sub(line, 1, settings.w)
+                    end
+                    --- Too many lines? truncate them ---
+                    if settings.y+num > settings.y+settings.h then
+                        break
+                    end
+                    monitor.write(line, settings.x, settings.y+num-1, color)
+                end
+            end
+        end
+        monitor.draw()
+    end
+    sleep(g_config["SETTINGS"]["time_between_redraws"])
+end
