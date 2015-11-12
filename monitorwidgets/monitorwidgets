@@ -4,7 +4,7 @@
 
 os.loadAPI("easymonitor")
 
-configFile = fs.open("monitorwidgets_config", "r")
+configFile = fs.open("monitorwidgets/monitorwidgets_config", "r")
 g_config = textutils.unserialize(configFile.readAll())
 configFile.close()
 
@@ -21,7 +21,7 @@ if g_config["MONITORS"] ~= nil then
             monitor = easymonitor.wrap(monitor_name)
             g_monitors[monitor] = config
             for name, settings in pairs(g_config["MONITORS"][monitor_name]) do
-                if not os.loadAPI("monitorwidgets_plugins/"..name) then
+                if not os.loadAPI("monitorwidgets/monitorwidgets_plugins/"..name) then
                     print("ERROR: Failed to load plugin: "..name)
                 end
             end

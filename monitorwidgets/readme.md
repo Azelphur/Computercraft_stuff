@@ -13,3 +13,5 @@ function getTitle
 Return the title of your plugin, for title bars.
 
 The config file is fairly simple, and allows you to configure the width, height, x and y of widgets. Note that these positions pertain to the contents of the window, title bars and borders will be drawn outside this area. Eg if you put a window at 1,1 and enable borders, the top and left border will not be drawn as they would be off screen.
+
+To install, put the monitorwidgets folder in / and run monitorwidgets.
