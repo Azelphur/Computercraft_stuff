@@ -1,0 +1,521 @@
+
+function strContains(a, b)
+    if type(a) ~= "string" or type(b) ~= "string" then
+        return false
+    end
+    return string.find(string.lower(a), string.lower(b))
+end
+
+function padLine(line)
+    local w, h = term.getSize()
+    return line..string.rep(" ", w-string.len(line))
+end
+
+function drawMenu(title, data, show_search)
+    local start_pos = 1
+    if title then
+        start_pos = start_pos + 2
+    end
+    if show_search then
+        start_pos = start_pos + 1
+    end
+
+    local search = ""
+    local selected = 1
+    local menuItems = {}
+    local update = true
+    w, h = term.getSize()
+
+    while true do
+        if update then
+            local header_line = 1
+            if title then
+                term.setTextColor(colors.white)
+                term.setCursorPos(1, header_line)
+                term.write(padLine(title))
+                term.setCursorPos(1, header_line+1)
+                term.write(string.rep("-", w))
+                header_line = header_line + 2
+            end
+            if show_search then
+                term.setTextColor(colors.white)
+                term.setCursorPos(1, header_line)
+                term.write(padLine("> "..search))
+
+                menuItems = {}
+                for num, displayitem in ipairs(data) do
+                    local info, display = data[num][1], data[num][2]
+                    if strContains(info, search) or strContains(display, search) then
+                        table.insert(menuItems, displayitem)
+                    end
+                end
+            else
+                menuItems = data
+            end
+
+            for screenLine=start_pos, h do
+                local arrayEntry = screenLine-start_pos+1
+                local availableLines = (h-start_pos)+1
+                entry = math.floor((selected-1)/availableLines)*availableLines+arrayEntry
+                term.setCursorPos(1, screenLine)
+                if entry > #menuItems then
+                    term.write(string.rep(" ", w))
+                else
+                    local info, display = menuItems[entry][1], menuItems[entry][2] 
+                    if selected == entry then
+                        term.setTextColor(colors.blue)
+                    else
+                        term.setTextColor(colors.white)
+                    end
+                    term.write(padLine(display))
+                end
+            end
+        end
+        local event, key = os.pullEvent()
+        update = false
+        if event == "char" and show_search then
+            search = search..key
+            update = true
+            selected = 1
+        elseif event == "key" then
+            if key == keys.backspace and #search > 0 then
+                selected = start_pos
+                update = true
+                search = string.sub(search, 1, -2)
+            elseif key == keys.up and selected > 1 then
+                selected = selected - 1
+                update = true
+            elseif key == keys.down and selected < #menuItems then
+                selected = selected + 1
+                update = true
+            elseif key == keys.enter then
+                return menuItems[selected][1], menuItems[selected][2]
+            elseif key == keys.home then
+                return nil, nil
+            end
+        end
+    end
+end
+
+function FingerPrintToString(item)
+    result=""
+    for key, value in pairs(item.fingerprint) do
+        result = result..key.."="..value..", "
+    end
+    return string.sub(result, 1, -3)
+end
+
+function GetItemName(me, item)
+    if item.fingerprint == nil then
+        return "Unknown"
+    end
+    
+    local fingerprint = FingerPrintToString(item)
+    if g_me_itemnames[fingerprint] then
+        return g_me_itemnames[fingerprint]
+    end
+
+    local item_detail = me.getItemDetail(item.fingerprint) or {}
+    local item_name
+    if item_detail.basic then
+        local item_basic = item_detail.basic()
+        item_name = item_basic.display_name or item.fingerprint.id
+    else
+        item_name = item.fingerprint.id
+    end
+    g_me_itemnames[fingerprint] = item_name
+
+    local f = fs.open("me_name_cache", "w")
+    f.write(textutils.serialise(g_me_itemnames))
+    f.close()
+
+    return item_name
+end
+
+function inputPrompt(prompt, number)
+    w, h = term.getSize()
+    term.clear()
+    term.setCursorPos(1, 1)
+    term.setTextColor(colors.white)
+    print(prompt)
+    local x, y = term.getCursorPos()
+    local input = ""
+    while true do
+        local event, key = os.pullEvent()
+        if event == "char" then
+            if (number and tonumber(key)) or not number then
+                input = input..key
+            end
+        elseif event == "key" then
+            if key == keys.enter then
+                return input
+            elseif key == keys.home then
+                return false
+            end
+        elseif key == keys.backspace and #input > 0 then
+            input = string.sub(input, 1, -2)
+        end
+        term.setCursorPos(1, y)
+        term.write("> "..input..string.rep(" ", w))
+    end
+end
+
+function save()
+    local data = textutils.serialise(g_config)
+    local f = fs.open("autocraft/config", "w")
+    f.write(data)
+    f.close()
+end
+
+function arrayRemoveMenu(title, array, titles)
+    local menuItems = {}
+    if not array or #array == 0 then
+        displayMessage("There isn't anything to remove")
+        return
+    end
+    for num, entry in ipairs(array) do
+        if titles then
+            table.insert(menuItems, {num, titles[num]})
+        else
+            table.insert(menuItems, {num, entry.name})
+        end
+    end
+    info, display = drawMenu("Select job to remove", menuItems, true)
+    if not info then
+        return
+    end
+
+    table.remove(array, info)
+    return array
+end
+
+function editJobs()
+    if #g_config.jobs == 0 then
+        displayMessage("No jobs to edit, go create one!")
+        return
+    end
+    local menuItems = {}
+    for num, job in ipairs(g_config.jobs) do
+        table.insert(menuItems, {num, string.format("#%d %s", num, job.name)})
+    end
+    job, name = drawMenu("Select job to edit", menuItems, true)
+    if job then
+        addEditJob(job)
+    end
+end
+
+function itemSelectMenu(craftable_only)
+    local menuItems = {}
+    local items = me.getAvailableItems()
+    for itemid, item in pairs(items) do
+        if not craftable_only or (craftable_only and item.is_craftable) then
+            table.insert(menuItems, {FingerPrintToString(item), GetItemName(me, item)})
+        end
+    end
+    return drawMenu("Select item", menuItems, true)
+end
+
+function addEditJob(existing_job_index)
+    local job
+    if existing_job_index then
+        job = g_config.jobs[existing_job_index]
+    else
+        job = {
+            batch = 1,
+            conditions = {},
+        }
+    end
+
+    while true do -- why the fuck doesn't Lua have continue, abusing break...
+        while true do
+            local menuItems = {}
+            table.insert(menuItems, {"craft", string.format("Craft %s", job.name or "...")})
+            for num, condition in ipairs(job.conditions) do
+                if num == 1 then
+                    table.insert(menuItems, {{"condition", num}, string.format("[X] while %s %s %d", condition.name, condition.condition, condition.amount)})
+                else
+                    table.insert(menuItems, {{"condition", num}, string.format("[X] and %s %s %d", condition.name, condition.condition, condition.amount)})
+                end
+            end
+            if #job.conditions == 0 then
+                table.insert(menuItems, {"add_condition", "while ..."})
+            else
+                table.insert(menuItems, {"add_condition", "[+]"})
+            end
+            table.insert(menuItems, {"batch", string.format("In batches of %s", job.batch or "...")})
+            if job.fingerprint and #job.conditions > 0 and not existing_job_index then
+                table.insert(menuItems, {"add", "Add job"})
+            end
+            local info, display
+            if existing_job_index then
+                table.insert(menuItems, {"delete", "Delete job"})
+                table.insert(menuItems, {"done", "Done"})
+                info, display = drawMenu("Edit job", menuItems)
+            else
+                info, display = drawMenu("Create job", menuItems)
+            end
+            if not info then
+                return
+            elseif info == "craft" then
+                job.fingerprint, job.name = itemSelectMenu(true)
+            elseif info == "add_condition" then
+                local condition, _ = drawMenu("While I have ...", {{">", "More than"}, {"<", "Less than"}})
+                if not condition then
+                    break
+                end
+                amount = inputPrompt("How many? (blank for 1)", true)
+                if not amount then
+                    break
+                end
+                local fingerprint, name = itemSelectMenu()
+                if not fingerprint then
+                    break
+                end
+
+                table.insert(job.conditions, {fingerprint = fingerprint, name = name, amount = tonumber(amount), condition = condition})
+            elseif info == "batch" then
+                local amount = inputPrompt("How many to craft in a batch? (blank for 1)", true)
+                if not amount then
+                    break
+                end
+                if amount == "" then
+                    job.batch = 1
+                else
+                    job.batch = tonumber(amount)
+                end
+            elseif info == "cancel" then
+                return
+            elseif info == "add" then
+                table.insert(g_config.jobs, job)
+                save()
+                return
+            elseif info == "done" then
+                save()
+                return
+            elseif info == "delete" then
+                table.remove(g_config.jobs, existing_job_index)
+                return
+            elseif info[1] == "condition" then
+                table.remove(job.conditions, info[2])
+            end
+        end
+    end
+end
+
+function removeCraftingCPU()
+    result = arrayRemoveMenu("Remove crafting CPU", g_config.cpus)
+    if result then
+        g_config.cpus = result
+        save()
+    end
+end
+
+function addCraftingCPU()
+    local menuItems = {}
+    local cpus = me.getCraftingCPUs()
+    for num, cpu in pairs(cpus) do
+        if cpu.name ~= "" then
+            table.insert(menuItems, {cpu.name, cpu.name})
+        end
+    end
+    info, display = drawMenu("Select crafting CPU", menuItems)
+    if not info then
+        return
+    end
+    if isIn(g_config.cpus, "name", info) then
+        displayMessage("That CPU is already added")
+        return
+    end
+
+    table.insert(g_config.cpus, {name = info})
+    save()
+end
+
+function displayMessage(msg)
+    term.clear()
+    term.setCursorPos(1, 1)
+    term.setTextColor(colors.white)
+    print(msg)
+    print("Press any key to continue...")
+    os.pullEvent("key")
+end
+
+function mainMenu()
+    menuItems = {
+        {addEditJob, "Add job"},
+        {editJobs, "Edit jobs"},
+        {addCraftingCPU, "Add crafting CPU"},
+        {removeCraftingCPU, "Remove crafting CPU"},
+        {craft, "Begin autocrafting"},
+        {"exit", "Exit"},
+    }
+
+    local result, display = drawMenu("What would you like to do?", menuItems)
+    if result == "exit" then
+        return false
+    elseif result then
+        result()
+    else
+        return true
+    end
+end
+
+function getPeripheral()
+    g_config.peripheral = inputPrompt("Enter peripheral name of connected ME network")
+    save()
+end
+
+function isIn(list, sub, value)
+    if not list then
+        return false
+    end
+    for num, item in ipairs(list) do
+        if item[sub] == value then
+            return true
+        end
+    end
+    return false
+end
+
+function getJobs()
+    local items = me.getAvailableItems()
+    local items_dict = {}
+    local cpu = 1
+    local jobs = {}
+    for itemid, item in pairs(items) do
+        items_dict[FingerPrintToString(item)] = item
+    end
+    for num, job in ipairs(g_config.jobs) do
+        local executeJob = true
+        for num, condition in ipairs(job.conditions) do
+            if condition.condition == ">" and items_dict[condition.fingerprint].size < condition.amount then
+                executeJob = false
+                break
+            elseif condition.condition == "<" and items_dict[condition.fingerprint].size > condition.amount then
+                executeJob = false
+                break
+            end
+        end
+        if executeJob then
+            table.insert(jobs, {items_dict[job.fingerprint], job.batch, job, num})
+        end
+    end
+
+    return jobs
+end
+
+function isCPUBusy(cpuname)
+    local cpus = me.getCraftingCPUs()
+    for num, cpu in pairs(cpus) do
+        if cpu.name == cpuname then
+            return cpu.busy
+        end
+    end
+    print("CPU "..cpuname.."is missing!")
+    return true
+end
+
+function checkCraftSanity(msg)
+    if #g_config.cpus == 0 then
+        if msg then
+            displayMessage("You must add a CPU before crafting")
+        end
+        return false
+    elseif #g_config.jobs == 0 then
+        if msg then
+            displayMessage("You must add some jobs before you can auto craft")
+        end
+        return false
+    end
+    return true
+end
+
+function craftLoop()
+    term.clear()
+    term.setTextColor(colors.white)
+    print("Press any key to return to menu")
+    while true do
+        local jobs = getJobs()
+        if #jobs == 0 then
+            print("All jobs complete, still watching though!")
+        end
+        while #jobs == 0 do
+            jobs = getJobs()
+            sleep(10)
+        end
+        local available_cpus = #g_config.cpus
+        for num, job in ipairs(jobs) do
+            for num, cpu in ipairs(g_config.cpus) do
+                if isCPUBusy(cpu.name) then
+                    available_cpus = available_cpus - 1
+                else
+                    me.requestCrafting(job[1].fingerprint, job[2], cpu.name)
+                    sleep(0.1)
+                    if isCPUBusy(cpu.name) then
+                        available_cpus = available_cpus - 1
+                        print(string.format("Job %d %d x %s on %s", job[4], job[2], job[3].name, cpu.name))
+                        break
+                    else
+                        print("Failed ", job[3].name, " on ", cpu.name)
+                    end
+                end
+            end
+            if available_cpus == 0 then
+                break
+            end
+        end
+    end
+end
+
+function craft()
+    if checkCraftSanity(true) == false then
+        return
+    end
+    parallel.waitForAny(craftLoop, exitProgram)
+end
+
+function exitProgram()
+  repeat
+    local ev, key = os.pullEvent('key')
+  until ev == "key"
+end
+
+
+if fs.exists("autocraft/config") then
+    local configFile = fs.open("autocraft/config", "r")
+    g_config = textutils.unserialize(configFile.readAll())
+    configFile.close()
+else
+    g_config = {jobs = {}, cpus = {}}
+end
+
+
+if not g_config.peripheral then
+    getPeripheral()
+end
+
+me = peripheral.wrap(g_config.peripheral)
+
+g_me_itemnames = {}
+if fs.exists("me_name_cache") then
+    local configFile = fs.open("me_name_cache", "r")
+    g_me_itemnames = textutils.unserialize(configFile.readAll())
+    configFile.close()
+else
+    print("Caching item names, please wait...")
+    local items = me.getAvailableItems()
+    for itemid, item in pairs(items) do
+        GetItemName(me, item)
+    end
+end
+
+if checkCraftSanity() then
+    craft()
+end
+
+while true do
+    if mainMenu() == false then
+        return
+    end
+end
+
