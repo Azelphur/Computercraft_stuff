@@ -388,7 +388,9 @@ function getJobs()
     for num, job in ipairs(g_config.jobs) do
         local executeJob = true
         for num, condition in ipairs(job.conditions) do
-            if condition.condition == ">" and items_dict[condition.fingerprint].size < condition.amount then
+            if not items_dict[condition.fingerprint] then
+                executeJob = false
+            elseif condition.condition == ">" and items_dict[condition.fingerprint].size < condition.amount then
                 executeJob = false
                 break
             elseif condition.condition == "<" and items_dict[condition.fingerprint].size > condition.amount then
