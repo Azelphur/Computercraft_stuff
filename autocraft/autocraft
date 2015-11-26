@@ -473,6 +473,7 @@ function craftLoop()
                     if isCPUBusy(cpu.name) then
                         available_cpus = available_cpus - 1
                         print(string.format("Job %d %d x %s on %s", job[4], job[2], job[3].name, cpu.name))
+                        g_me_crafting[cpu.name] = job[3].fingerprint
                         break
                     else
                         print("Failed ", job[3].name, " on ", cpu.name)
