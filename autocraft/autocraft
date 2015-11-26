@@ -219,10 +219,14 @@ function addEditJob(existing_job_index)
     local job
     if existing_job_index then
         job = shallowCopy(g_config.jobs[existing_job_index])
+        if job.cpus == nil then
+            job.cpus = {}
+        end
     else
         job = {
             batch = 1,
             conditions = {},
+            cpus = {}
         }
     end
 
@@ -243,6 +247,20 @@ function addEditJob(existing_job_index)
                 table.insert(menuItems, {"add_condition", "[+]"})
             end
             table.insert(menuItems, {"batch", string.format("In batches of %s", job.batch or "...")})
+            for num, cpu in ipairs(job.cpus) do
+                if num == 1 then
+                    table.insert(menuItems, {{"cpu", num}, string.format("Craft on %s", cpu.name)})
+                else
+                    table.insert(menuItems, {{"cpu", num}, string.format("and %s", cpu.name)})
+                end
+            end
+
+            if #job.cpus == 0 then
+                table.insert(menuItems, {"addcpu", "Only craft on a specific CPU"})
+            else
+                table.insert(menuItems, {"addcpu", "[+]"})
+            end
+
             if job.fingerprint and #job.conditions > 0 then
                 if existing_job_index then
                     table.insert(menuItems, {"save", "Save job"})
@@ -300,6 +318,13 @@ function addEditJob(existing_job_index)
             elseif info == "delete" then
                 table.remove(g_config.jobs, existing_job_index)
                 return
+            elseif info == "addcpu" then
+                cpuname = craftingCPUMenu(job.cpus)
+                if cpuname then
+                    table.insert(job.cpus, {name = cpuname})
+                end
+            elseif info[1] == "cpu" then
+                table.remove(job.cpus, info[2])
             elseif info[1] == "condition" then
                 table.remove(job.conditions, info[2])
             end
@@ -315,19 +340,34 @@ function removeCraftingCPU()
     end
 end
 
-function addCraftingCPU()
+function craftingCPUMenu(exclude)
+    local exclude = exclude or {}
     local menuItems = {}
     local cpus = me.getCraftingCPUs()
     for num, cpu in pairs(cpus) do
         if cpu.name ~= "" then
-            table.insert(menuItems, {cpu.name, cpu.name})
+            if not isIn(exclude, "name", cpu.name) then
+                table.insert(menuItems, {cpu.name, cpu.name})
+            end
         end
+    end
+    if #menuItems == 0 then
+        displayMessage("There are no CPUs to add")
+        return
     end
     info, display = drawMenu("Select crafting CPU", menuItems)
     if not info then
         return
     end
-    if isIn(g_config.cpus, "name", info) then
+    return info
+end
+
+function addCraftingCPU()
+    cpuname = craftingCPUMenu(g_config.cpus)
+    if not cpuname then
+        return
+    end
+    if isIn(g_config.cpus, "name", cpuname) then
         displayMessage("That CPU is already added")
         return
     end
@@ -464,7 +504,13 @@ function craftLoop()
         end
         local available_cpus = #g_config.cpus
         for num, job in ipairs(jobs) do
-            for num, cpu in ipairs(g_config.cpus) do
+            local use_cpus
+            if job[3].cpus then
+                use_cpus = job[3].cpus
+            else
+                use_cpus = g_config.cpus
+            end
+            for num, cpu in ipairs(use_cpus) do
                 if isCPUBusy(cpu.name) then
                     available_cpus = available_cpus - 1
                 elseif canCraft(job[3].fingerprint) then
