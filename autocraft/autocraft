@@ -243,13 +243,17 @@ function addEditJob(existing_job_index)
                 table.insert(menuItems, {"add_condition", "[+]"})
             end
             table.insert(menuItems, {"batch", string.format("In batches of %s", job.batch or "...")})
-            if job.fingerprint and #job.conditions > 0 and not existing_job_index then
-                table.insert(menuItems, {"add", "Add job"})
+            if job.fingerprint and #job.conditions > 0 then
+                if existing_job_index then
+                    table.insert(menuItems, {"save", "Save job"})
+                else
+                    table.insert(menuItems, {"add", "Add job"})
+                end
             end
+            table.insert(menuItems, {"cancel", "Cancel"})
             local info, display
             if existing_job_index then
                 table.insert(menuItems, {"delete", "Delete job"})
-                table.insert(menuItems, {"save", "Save"})
                 info, display = drawMenu("Edit job", menuItems)
             else
                 info, display = drawMenu("Create job", menuItems)
