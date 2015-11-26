@@ -1,0 +1,75 @@
+notFirstRun = false
+
+outputLines = {}
+
+g_data = {}
+
+g_devices = {}
+
+WRAPPED_bat = {}
+lastEU = 0
+
+totalEUCap = 0
+totalEUAmo = 0
+
+alertColor = nil
+
+function round(num, idp)
+  local mult = 10^(idp or 0)
+  return math.floor(num * mult + 0.5) / mult
+end
+
+function draw(monitor, settings)
+
+	outputTab = {}
+
+	-- EU calculation
+	totalEUCap = 0
+	totalEUAmo = 0
+	totalDevices = 0
+
+	for id, name in pairs(peripheral.getNames()) do
+		if name:sub(1, 4) == "mfsu" then
+			if WRAPPED_bat[id-1] == nil then
+				WRAPPED_bat[id-1] = peripheral.wrap(name)
+			end
+			totalEUAmo = totalEUAmo + WRAPPED_bat[id-1].getEUStored()
+			totalEUCap = totalEUCap + WRAPPED_bat[id-1].getEUCapacity()
+			totalDevices = totalDevices + 1
+		end
+	end
+	perc = round((totalEUAmo / totalEUCap) * 100)
+
+	-- Compute ui status color
+	if perc < settings.criticalPowerLevel then
+		alertColor = colors.red
+		else
+		if perc < settings.lowPowerLevel then
+			alertColor = colors.yellow
+		else	
+			alertColor = colors.green		
+		end
+	end
+	
+
+	-- Drawing
+	table.insert(outputTab, {"No of Devices "..totalDevices,nil})
+	table.insert(outputTab, {"EU stored "..totalEUAmo,nil})
+	table.insert(outputTab, {"EU Capacity "..totalEUCap,nil})
+	table.insert(outputTab, {"EU Percentage "..perc.."%",nil})
+	table.insert(outputTab, {" ",nil})
+
+	-- Draw Meter.
+	meterPos = round((settings.w-3)*(perc/100))
+	meterAntiPos = round((settings.w-2)-((meterPos)+1))
+
+	table.insert(outputTab, {"|"..string.rep(" ",meterPos).."|"..string.rep(" ",meterAntiPos).."|",nil})
+	table.insert(outputTab, {"|"..string.rep("|",meterPos).."|"..string.rep("|",meterAntiPos).."|",alertColor})
+	table.insert(outputTab, {"|"..string.rep(" ",meterPos).."|"..string.rep(" ",meterAntiPos).."|",nil})
+
+    return outputTab
+end
+
+function getTitle()
+    return "EU Monitoring"
+end
