@@ -410,10 +410,22 @@ function isCPUBusy(cpuname)
     local cpus = me.getCraftingCPUs()
     for num, cpu in pairs(cpus) do
         if cpu.name == cpuname then
+            if not cpu.busy then
+                g_me_crafting[cpu.name] = nil
+            end
             return cpu.busy
         end
     end
     print("CPU "..cpuname.."is missing!")
+    return true
+end
+
+function canCraft(fingerprint)
+    for cpuname, fingerprint2 in pairs(g_me_crafting) do
+        if fingerprint2 == fingerprint then
+            return false
+        end
+    end
     return true
 end
 
@@ -450,7 +462,7 @@ function craftLoop()
             for num, cpu in ipairs(g_config.cpus) do
                 if isCPUBusy(cpu.name) then
                     available_cpus = available_cpus - 1
-                else
+                elseif canCraft(job[3].fingerprint) then
                     me.requestCrafting(job[1].fingerprint, job[2], cpu.name)
                     sleep(0.1)
                     if isCPUBusy(cpu.name) then
@@ -496,9 +508,9 @@ if not g_config.peripheral then
     getPeripheral()
 end
 
-me = peripheral.wrap(g_config.peripheral)
+local me = peripheral.wrap(g_config.peripheral)
 
-g_me_itemnames = {}
+local g_me_itemnames = {}
 if fs.exists("me_name_cache") then
     local configFile = fs.open("me_name_cache", "r")
     g_me_itemnames = textutils.unserialize(configFile.readAll())
@@ -510,6 +522,8 @@ else
         GetItemName(me, item)
     end
 end
+
+local g_me_crafting = {}
 
 if checkCraftSanity() then
     craft()
