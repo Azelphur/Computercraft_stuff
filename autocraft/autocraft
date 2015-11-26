@@ -218,7 +218,7 @@ end
 function addEditJob(existing_job_index)
     local job
     if existing_job_index then
-        job = g_config.jobs[existing_job_index]
+        job = shallowCopy(g_config.jobs[existing_job_index])
     else
         job = {
             batch = 1,
@@ -249,7 +249,7 @@ function addEditJob(existing_job_index)
             local info, display
             if existing_job_index then
                 table.insert(menuItems, {"delete", "Delete job"})
-                table.insert(menuItems, {"done", "Done"})
+                table.insert(menuItems, {"save", "Save"})
                 info, display = drawMenu("Edit job", menuItems)
             else
                 info, display = drawMenu("Create job", menuItems)
@@ -289,7 +289,8 @@ function addEditJob(existing_job_index)
                 table.insert(g_config.jobs, job)
                 save()
                 return
-            elseif info == "done" then
+            elseif info == "save" then
+                g_config.jobs[existing_job_index] = job
                 save()
                 return
             elseif info == "delete" then
@@ -481,6 +482,20 @@ function craftLoop()
     end
 end
 
+function shallowCopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in pairs(orig) do
+            copy[orig_key] = orig_value
+        end
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
+end
+
 function craft()
     if checkCraftSanity(true) == false then
         return
@@ -508,9 +523,9 @@ if not g_config.peripheral then
     getPeripheral()
 end
 
-local me = peripheral.wrap(g_config.peripheral)
+me = peripheral.wrap(g_config.peripheral)
 
-local g_me_itemnames = {}
+g_me_itemnames = {}
 if fs.exists("me_name_cache") then
     local configFile = fs.open("me_name_cache", "r")
     g_me_itemnames = textutils.unserialize(configFile.readAll())
@@ -523,7 +538,7 @@ else
     end
 end
 
-local g_me_crafting = {}
+g_me_crafting = {}
 
 if checkCraftSanity() then
     craft()
