@@ -32,6 +32,16 @@
                     text = "World",
                 },
             },
+            ["eumon"] = {
+                x = 33,
+                y = 4,
+                w = 28,
+                h = 10,
+                draw_border = true,
+                draw_title = true,
+                lowPowerLevel = 50,
+                criticalPowerLevel = 25,
+			},
         }
     },
     ["SETTINGS"] = {
