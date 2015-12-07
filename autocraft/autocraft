@@ -502,22 +502,18 @@ function craftLoop()
             jobs = getJobs()
             sleep(10)
         end
-        local available_cpus = #g_config.cpus
         for num, job in ipairs(jobs) do
             local use_cpus
-            if job[3].cpus then
+            if job[3].cpus and #job[3].cpus ~= 0 then
                 use_cpus = job[3].cpus
             else
                 use_cpus = g_config.cpus
             end
             for num, cpu in ipairs(use_cpus) do
-                if isCPUBusy(cpu.name) then
-                    available_cpus = available_cpus - 1
-                elseif canCraft(job[3].fingerprint) then
+                if not isCPUBusy(cpu.name) and canCraft(job[3].fingerprint) then
                     me.requestCrafting(job[1].fingerprint, job[2], cpu.name)
                     sleep(0.1)
                     if isCPUBusy(cpu.name) then
-                        available_cpus = available_cpus - 1
                         print(string.format("Job %d %d x %s on %s", job[4], job[2], job[3].name, cpu.name))
                         g_me_crafting[cpu.name] = job[3].fingerprint
                         break
@@ -525,9 +521,6 @@ function craftLoop()
                         print("Failed ", job[3].name, " on ", cpu.name)
                     end
                 end
-            end
-            if available_cpus == 0 then
-                break
             end
         end
     end
